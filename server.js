@@ -48,7 +48,7 @@ bot.on('message', async (msg) => {
     console.log(`   reply_to text: "${(msg.reply_to_message.text || '').substring(0, 100)}"`);
     
     const text = msg.reply_to_message.text || '';
-    const match = text.match(/ID: `(\d+)`/);
+    const match = text.match(/ID: (\d+)/);
     
     if (!match) {
       console.log(`❌ No ID match in: "${text}"`);
