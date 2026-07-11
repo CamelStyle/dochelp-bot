@@ -8,74 +8,64 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 const app = express();
 app.use(express.json());
 
-// Команда /start
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, 
-    '👋 Здравствуйте! Я бот поддержки DocHelp Israel.\n\n' +
-    'Напишите ваш вопрос — оператор ответит в ближайшее время.'
-  );
+  bot.sendMessage(msg.chat.id, '👋 Здравствуйте! Напишите ваш вопрос.');
 });
 
-// ЕДИНСТВЕННЫЙ обработчик сообщений
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const isGroup = chatId.toString() === OPERATORS_GROUP_ID.toString();
   const isFromBot = msg.from.is_bot;
   
-  // Игнорируем ботов
   if (isFromBot) return;
-  // Игнорируем сообщения без текста
   if (!msg.text) return;
-  // Игнорируем команды
   if (msg.text.startsWith('/')) return;
   
-  // ===== Сообщение от ПОЛЬЗОВАТЕЛЯ (в личке) =====
+  // ЛОГ ВСЕХ СООБЩЕНИЙ
+  console.log(`📩 Message: chat=${chatId}, group=${isGroup}, text="${msg.text.substring(0, 30)}", reply_to=${!!msg.reply_to_message}`);
+  
+  // Сообщение от пользователя
   if (!isGroup) {
     const userId = msg.from.id;
-    const userName = msg.from.first_name || 'Пользователь';
-    const username = msg.from.username || 'нет';
+    const userName = msg.from.first_name || 'User';
     
     const operatorText = 
-      `👤 *Вопрос от ${userName}*\n` +
-      `Username: @${username}\n` +
-      `ID: \`${userId}\`\n\n` +
-      `💬 ${msg.text}\n\n` +
-      `↩️ *Ответьте reply*`;
+      `👤 *${userName}* (ID: \`${userId}\`)\n\n` +
+      `💬 ${msg.text}`;
     
     try {
       const sent = await bot.sendMessage(OPERATORS_GROUP_ID, operatorText, { parse_mode: 'Markdown' });
-      console.log(`✅ Forwarded to group: ${userId} -> ${sent.message_id}`);
+      console.log(`✅ Forwarded ${userId} -> group msg ${sent.message_id}`);
     } catch (e) {
-      console.error('❌ Forward error:', e.message);
+      console.error(`❌ Forward error: ${e.message}`);
     }
+    return;
   }
   
-  // ===== Сообщение от ОПЕРАТОРА (в группе, reply) =====
-  else if (msg.reply_to_message && msg.reply_to_message.text) {
-    const text = msg.reply_to_message.text;
+  // Сообщение в группе
+  if (isGroup && msg.reply_to_message) {
+    console.log(`💬 Group reply: "${msg.text}"`);
+    console.log(`   reply_to text: "${(msg.reply_to_message.text || '').substring(0, 100)}"`);
+    
+    const text = msg.reply_to_message.text || '';
     const match = text.match(/ID: `(\d+)`/);
-    if (!match) return;
+    
+    if (!match) {
+      console.log(`❌ No ID match in: "${text}"`);
+      return;
+    }
     
     const userId = parseInt(match[1]);
-    const replyText = msg.text;
+    console.log(`🔍 Parsed user ID: ${userId}`);
     
     try {
-      await bot.sendMessage(userId, 
-        `💬 *Ответ поддержки:*\n\n${replyText}`,
-        { parse_mode: 'Markdown' }
-      );
-      console.log(`✅ Reply sent to: ${userId}`);
-      bot.sendMessage(OPERATORS_GROUP_ID, '✅ Отправлено', {
-        reply_to_message_id: msg.message_id
-      });
+      await bot.sendMessage(userId, `💬 *Ответ поддержки:*\n\n${msg.text}`, { parse_mode: 'Markdown' });
+      console.log(`✅ Reply sent to ${userId}`);
     } catch (e) {
-      console.error('❌ Reply error:', e.message);
-      bot.sendMessage(OPERATORS_GROUP_ID, `❌ Ошибка: ${e.message}`, {
-        reply_to_message_id: msg.message_id
-      });
+      console.error(`❌ Reply error: ${e.message}`);
     }
   }
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Bot server on port ${PORT}`));
+app.listen(PORT, () => console.log(`Bot on port ${PORT}`));
