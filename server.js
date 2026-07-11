@@ -33,16 +33,29 @@ bot.on('message', async (msg) => {
   if (!isGroup) {
     const userId = msg.from.id;
     const userName = msg.from.first_name || 'Пользователь';
-    const username = msg.from.username || 'нет';
+    const lastName = msg.from.last_name || '';
+    const username = msg.from.username ? `@${msg.from.username}` : 'не указан';
+    const fullName = lastName ? `${userName} ${lastName}` : userName;
     
+    const now = new Date();
+    const dateStr = now.toLocaleString('ru-RU', { timeZone: 'Asia/Jerusalem' });
+    
+    // ✅ КРАСИВОЕ сообщение для операторов
     const operatorText = 
-      `👤 *${userName}* (@${username})\n` +
-      `ID: ${userId}\n\n` +
-      `💬 ${msg.text}`;
+      `🆕 *Новое сообщение от клиента*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `👤 *Имя:* ${fullName}\n` +
+      `🔗 *Username:* ${username}\n` +
+      `🆔 *ID:* \`${userId}\`\n` +
+      `🕐 *Время:* ${dateStr}\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `💬 *Сообщение:*\n` +
+      `${msg.text}\n\n` +
+      `↩️ *Ответьте reply на это сообщение*`;
     
     try {
       const sent = await bot.sendMessage(OPERATORS_GROUP_ID, operatorText, { parse_mode: 'Markdown' });
-      console.log(`✅ Forwarded ${userId} -> group msg ${sent.message_id}`);
+      console.log(`✅ Forwarded to group: user=${userId} -> msg=${sent.message_id}`);
     } catch (e) {
       console.error(`❌ Forward error: ${e.message}`);
     }
@@ -52,8 +65,6 @@ bot.on('message', async (msg) => {
   // ===== Ответ ОПЕРАТОРА (в группе, reply) =====
   if (isGroup && msg.reply_to_message) {
     const text = msg.reply_to_message.text || '';
-    
-    // ✅ ИСПРАВЛЕНО: ищем ID без кавычек
     const match = text.match(/ID:\s*(\d+)/);
     
     if (!match) {
@@ -62,24 +73,38 @@ bot.on('message', async (msg) => {
     }
     
     const userId = parseInt(match[1]);
-    console.log(`🔍 Sending reply to user ${userId}: "${msg.text}"`);
+    const operatorName = msg.from.first_name || 'Оператор';
+    
+    console.log(`🔍 Sending reply to user ${userId} from ${operatorName}: "${msg.text}"`);
     
     try {
-      await bot.sendMessage(userId, 
-        `💬 *Ответ поддержки:*\n\n${msg.text}`,
-        { parse_mode: 'Markdown' }
-      );
-      console.log(`✅ Reply sent to ${userId}`);
+      // ✅ КРАСИВЫЙ ответ пользователю
+      const userReply = 
+        `💬 *Ответ от поддержки DocHelp*\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `${msg.text}\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `👨‍💼 Оператор: ${operatorName}\n` +
+        `📅 ${new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Jerusalem' })}\n\n` +
+        `💡 Если остались вопросы — напишите ещё раз!`;
+      
+      await bot.sendMessage(userId, userReply, { parse_mode: 'Markdown' });
+      console.log(`✅ Reply sent to user ${userId}`);
       
       // Подтверждение оператору
-      bot.sendMessage(OPERATORS_GROUP_ID, '✅ Отправлено', {
+      bot.sendMessage(OPERATORS_GROUP_ID, '✅ Отправлено клиенту', {
         reply_to_message_id: msg.message_id
       });
     } catch (e) {
       console.error(`❌ Reply error: ${e.message}`);
       bot.sendMessage(OPERATORS_GROUP_ID, 
-        `❌ Ошибка: ${e.message}\n\nВозможно, пользователь ещё не нажал Start у бота.`,
-        { reply_to_message_id: msg.message_id }
+        `❌ *Не удалось отправить*\n\n` +
+        `Ошибка: ${e.message}\n\n` +
+        `💡 Возможно, клиент ещё не нажал /start у бота.`,
+        { 
+          parse_mode: 'Markdown',
+          reply_to_message_id: msg.message_id 
+        }
       );
     }
   }
@@ -99,7 +124,6 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Bot webhook server on port ${PORT}`);
-  // Устанавливаем webhook
   bot.setWebHook(`${WEBHOOK_URL}/webhook/${TOKEN}`).then(() => {
     console.log('✅ Webhook set successfully');
   }).catch(err => {
